@@ -64,6 +64,9 @@ echo "-----> Fetching Manifest"
 pushd ${BUNDLE_DIR} > /dev/null
 curl --silent --max-time 60 -O --location $MANIFEST_URL
 
+cd ${BUILD_DIR}
+`dirname $0`/ssh-keys/compile
+
 # Nginx
 echo "-----> Installing Nginx"
 if [ -f "${NGINX_FILE}" ]

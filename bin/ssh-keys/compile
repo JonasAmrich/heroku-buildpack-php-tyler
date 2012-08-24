@@ -1,0 +1,64 @@
+#!/usr/bin/env ruby
+
+require 'tmpdir'
+require 'fileutils'
+
+def indent(str)
+  str.split("\n").each do |line|
+    puts "       #{line}"
+  end
+end
+
+def arrow(str)
+  str.split("\n").each do |line|
+    puts "-----> #{line}"
+  end
+end
+
+buildDir   = ARGV[0]
+privateKey = File.expand_path "heroku/id_rsa"
+knownHosts = File.expand_path "heroku/known_hosts"
+sshHomeDir = File.expand_path "#{ENV["HOME"]}/.ssh"
+
+arrow "Checking for a valid SSH key"
+
+if !File::exists? privateKey
+  indent "Can't find the key file"
+  exit 1
+else
+  indent "Found ssh key heroku/id_rsa"
+end
+
+if !File::exists? knownHosts
+  indent "Can't find the known hosts file"
+  exit 1
+else
+  indent "Found known hosts in heroku/known_hosts"
+end
+
+Dir.mktmpdir "ssh_buildpack" do |dir|
+  `ssh-keygen -e -P '' -f #{privateKey} < /dev/null > #{dir}/ssh_buildpack_key.pub.rfc 2>/dev/null`
+  `ssh-keygen -i -P '' -f #{dir}/ssh_buildpack_key.pub.rfc > #{dir}/ssh_buildpack_key.pub 2>/dev/null`
+  fingerprint = `ssh-keygen -l -f #{dir}/ssh_buildpack_key.pub`
+  key = `echo "#{fingerprint}" | tr -ds ':' '' | egrep -ie "[a-f0-9]{32}" 2>/dev/null`
+
+  # if key is empty, abort the build
+  if key.strip == ''
+    indent "SSH_KEY was invalid"
+    exit 1
+  else
+    indent "Using SSH_KEY #{fingerprint}"
+  end
+end
+
+arrow "Copying ssh files from repo"
+
+Dir.mkdir sshHomeDir, 0700 unless File.exists? sshHomeDir
+
+FileUtils.cp "heroku/id_rsa", "#{sshHomeDir}/id_rsa"
+FileUtils.chmod 0600, "#{sshHomeDir}/id_rsa"
+indent "Copied ssh key heroku/id_rsa to user's ssh dir"
+
+FileUtils.cp "heroku/known_hosts", "#{sshHomeDir}/known_hosts"
+FileUtils.chmod 0600, "#{sshHomeDir}/known_hosts"
+indent "Copied heroku/known_hosts to user's ssh dir"
